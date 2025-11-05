@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Loan Processing API",
+    "version": "1.0.0",
+    "description": "Apply for, approve, and manage bank loans."
+  },
+  "paths": {
+    "/loans": {
+      "get": {
+        "summary": "List all loans"
+      },
+      "post": {
+        "summary": "Apply for a new loan"
+      }
+    },
+    "/loans/{loanId}": {
+      "get": {
+        "summary": "Get loan details"
+      },
+      "put": {
+        "summary": "Update loan status"
+      }
+    }
+  }
+}

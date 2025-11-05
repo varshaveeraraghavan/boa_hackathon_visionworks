@@ -1,0 +1,20 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Payment Service API",
+    "version": "1.0.0",
+    "description": "Initiate and track bank payments."
+  },
+  "paths": {
+    "/payments": {
+      "post": {
+        "summary": "Initiate a payment"
+      }
+    },
+    "/payments/{paymentId}": {
+      "get": {
+        "summary": "Get payment status"
+      }
+    }
+  }
+}

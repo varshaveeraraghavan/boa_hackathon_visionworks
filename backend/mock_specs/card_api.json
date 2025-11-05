@@ -1,0 +1,26 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Card Management API",
+    "version": "1.0.0",
+    "description": "Manage debit and credit cards."
+  },
+  "paths": {
+    "/cards": {
+      "get": {
+        "summary": "List all cards"
+      },
+      "post": {
+        "summary": "Request a new card"
+      }
+    },
+    "/cards/{cardId}": {
+      "get": {
+        "summary": "Get card details"
+      },
+      "put": {
+        "summary": "Update card limit"
+      }
+    }
+  }
+}
