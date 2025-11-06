@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duplicate API Detective</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const Search = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>);
+        const FileText = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line></svg>);
+        const AlertCircle = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>);
+        const CheckCircle = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>);
+        const TrendingUp = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>);
+        const Database = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>);
+        const Zap = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>);
+        const DollarSign = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>);
+        const Plus = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>);
+        const X = () => (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>);
+
+        const DuplicateAPIDetective = () => {
+            const [selectedAPI, setSelectedAPI] = useState(null);
+            const [scanning, setScanning] = useState(false);
+            const [results, setResults] = useState(null);
+            const [showAddForm, setShowAddForm] = useState(false);
+            const [apiDatabase, setApiDatabase] = useState([
+                {id: 1, name: "GET /api/v1/users/{id}", description: "Retrieve user profile information", method: "GET", params: ["id"], response: { userId: "string", name: "string", email: "string" }, domain: "user-management", calls: 15000},
+                {id: 2, name: "GET /api/user/profile/{userId}", description: "Get user profile details", method: "GET", params: ["userId"], response: { id: "string", fullName: "string", emailAddress: "string" }, domain: "user-management", calls: 8000},
+                {id: 3, name: "POST /api/v2/users/fetch", description: "Fetch user information by ID", method: "POST", params: ["user_id"], response: { user_id: "string", name: "string", email: "string" }, domain: "user-management", calls: 3000},
+                {id: 4, name: "GET /api/payments/transaction/{id}", description: "Get payment transaction details", method: "GET", params: ["id"], response: { txnId: "string", amount: "number", status: "string" }, domain: "payments", calls: 12000},
+                {id: 5, name: "GET /api/v1/orders/{orderId}", description: "Retrieve order information", method: "GET", params: ["orderId"], response: { orderId: "string", items: "array", total: "number" }, domain: "orders", calls: 20000}
+            ]);
+
+            const [newAPI, setNewAPI] = useState({name: "", description: "", method: "GET", params: "", domain: "", calls: 1000});
+
+            const calculateSimilarity = (api1, api2) => {
+                const words1 = api1.description.toLowerCase().split(' ');
+                const words2 = api2.description.toLowerCase().split(' ');
+                const commonWords = words1.filter(w => words2.includes(w));
+                const semantic = (commonWords.length / Math.max(words1.length, words2.length)) * 100;
+                const methodMatch = api1.method === api2.method ? 30 : 0;
+                const pathSimilarity = api1.domain === api2.domain ? 40 : 0;
+                const paramOverlap = api1.params.some(p => api2.params.includes(p)) ? 30 : 0;
+                const structural = methodMatch + pathSimilarity + paramOverlap;
+                const keys1 = Object.keys(api1.response || {});
+                const keys2 = Object.keys(api2.response || {});
+                const commonKeys = keys1.filter(k => keys2.includes(k));
+                const behavioral = keys1.length > 0 && keys2.length > 0 ? (commonKeys.length / Math.max(keys1.length, keys2.length)) * 100 : 0;
+                const finalScore = (0.4 * semantic + 0.3 * structural + 0.2 * behavioral) / 0.9;
+                return {overall: Math.round(finalScore), semantic: Math.round(semantic), structural: Math.round(structural), behavioral: Math.round(behavioral)};
+            };
+
+            const scanForDuplicates = (targetAPI) => {
+                setScanning(true);
+                setTimeout(() => {
+                    const duplicates = apiDatabase.filter(api => api.id !== targetAPI.id).map(api => ({...api, similarity: calculateSimilarity(targetAPI, api)})).filter(api => api.similarity.overall > 40).sort((a, b) => b.similarity.overall - a.similarity.overall);
+                    const totalCalls = duplicates.reduce((sum, api) => sum + api.calls, targetAPI.calls);
+                    const estimatedSavings = duplicates.length * 5000;
+                    setResults({duplicates, stats: {found: duplicates.length, totalCalls, estimatedSavings, consolidationPotential: duplicates.length > 0 ? 'High' : 'Low'}});
+                    setScanning(false);
+                }, 2000);
+            };
+
+            useEffect(() => {
+                if (selectedAPI && !results) scanForDuplicates(selectedAPI);
+            }, [selectedAPI]);
+
+            const handleAddAPI = (e) => {
+                e.preventDefault();
+                const paramsArray = newAPI.params.split(',').map(p => p.trim()).filter(p => p);
+                const apiToAdd = {id: apiDatabase.length + 1, name: newAPI.name, description: newAPI.description, method: newAPI.method, params: paramsArray, response: {}, domain: newAPI.domain, calls: parseInt(newAPI.calls) || 1000};
+                setApiDatabase([...apiDatabase, apiToAdd]);
+                setSelectedAPI(apiToAdd);
+                setShowAddForm(false);
+                setResults(null);
+                setNewAPI({name: "", description: "", method: "GET", params: "", domain: "", calls: 1000});
+            };
+
+            const getSimilarityColor = (score) => score >= 80 ? 'text-red-600 bg-red-50' : score >= 60 ? 'text-orange-600 bg-orange-50' : 'text-yellow-600 bg-yellow-50';
+            const getSimilarityLabel = (score) => score >= 80 ? 'Critical Duplicate' : score >= 60 ? 'Likely Duplicate' : 'Possible Duplicate';
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-8">
+                    <div className="max-w-7xl mx-auto">
+                        <div className="text-center mb-12">
+                            <div className="flex items-center justify-center gap-3 mb-4">
+                                <div className="text-yellow-400"><Zap /></div>
+                                <h1 className="text-5xl font-bold text-white">Duplicate API Detective</h1>
+                            </div>
+                            <p className="text-xl text-purple-200">AI-Powered API Duplication Analysis System</p>
+                        </div>
+
+                        {!selectedAPI ? (
+                            <div>
+                                <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-6">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Database />Select or Add an API to Analyze</h2>
+                                            <p className="text-purple-200">Choose an existing API or add a new one to scan for duplicates</p>
+                                        </div>
+                                        <button onClick={() => setShowAddForm(!showAddForm)} className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg font-semibold flex items-center gap-2 transition-all transform hover:scale-105 shadow-lg">
+                                            {showAddForm ? <X /> : <Plus />}{showAddForm ? 'Cancel' : 'Add New API'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {showAddForm && (
+                                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6 mb-6 border-2 border-green-500/50">
+                                        <h3 className="text-xl font-bold text-white mb-4">Add New API Endpoint</h3>
+                                        <form onSubmit={handleAddAPI} className="space-y-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-purple-200 text-sm font-semibold mb-2">API Endpoint Path *</label>
+                                                    <input type="text" required placeholder="e.g., GET /api/v1/products/{id}" value={newAPI.name} onChange={(e) => setNewAPI({...newAPI, name: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-purple-200 text-sm font-semibold mb-2">HTTP Method *</label>
+                                                    <select value={newAPI.method} onChange={(e) => setNewAPI({...newAPI, method: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white focus:outline-none focus:border-purple-500">
+                                                        <option value="GET">GET</option><option value="POST">POST</option><option value="PUT">PUT</option><option value="DELETE">DELETE</option><option value="PATCH">PATCH</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-purple-200 text-sm font-semibold mb-2">Description *</label>
+                                                <input type="text" required placeholder="e.g., Retrieve product information by ID" value={newAPI.description} onChange={(e) => setNewAPI({...newAPI, description: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500" />
+                                            </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-purple-200 text-sm font-semibold mb-2">Domain/Category *</label>
+                                                    <input type="text" required placeholder="e.g., user-management, payments" value={newAPI.domain} onChange={(e) => setNewAPI({...newAPI, domain: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-purple-200 text-sm font-semibold mb-2">Parameters (comma-separated)</label>
+                                                    <input type="text" placeholder="e.g., id, userId, query" value={newAPI.params} onChange={(e) => setNewAPI({...newAPI, params: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-purple-200 text-sm font-semibold mb-2">Estimated Daily Calls</label>
+                                                <input type="number" placeholder="1000" value={newAPI.calls} onChange={(e) => setNewAPI({...newAPI, calls: e.target.value})} className="w-full px-4 py-2 bg-white/10 border border-purple-500/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500" />
+                                            </div>
+                                            <button type="submit" className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg font-bold transition-all transform hover:scale-105">Add API and Scan for Duplicates</button>
+                                        </form>
+                                    </div>
+                                )}
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {apiDatabase.map(api => (
+                                        <div key={api.id} onClick={() => setSelectedAPI(api)} className="bg-white/10 backdrop-blur-lg rounded-lg p-6 cursor-pointer hover:bg-white/20 transition-all hover:scale-105 border border-purple-500/30">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${api.method === 'GET' ? 'bg-blue-500/20 text-blue-300' : api.method === 'POST' ? 'bg-green-500/20 text-green-300' : api.method === 'PUT' ? 'bg-yellow-500/20 text-yellow-300' : api.method === 'DELETE' ? 'bg-red-500/20 text-red-300' : 'bg-purple-500/20 text-purple-300'}`}>{api.method}</span>
+                                                <span className="text-purple-300 text-sm">{api.calls.toLocaleString()} calls/day</span>
+                                            </div>
+                                            <h3 className="text-lg font-mono text-white mb-2">{api.name}</h3>
+                                            <p className="text-purple-200 text-sm mb-3">{api.description}</p>
+                                            <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded">{api.domain}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <button onClick={() => { setSelectedAPI(null); setResults(null); }} className="mb-6 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg">← Back to API List</button>
+                                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg p-6 mb-6 shadow-2xl">
+                                    <h2 className="text-2xl font-bold text-white mb-2 flex items-center gap-2"><Search />Analyzing API</h2>
+                                    <p className="text-xl font-mono text-white mb-2">{selectedAPI.name}</p>
+                                    <p className="text-purple-100">{selectedAPI.description}</p>
+                                </div>
+
+                                {scanning ? (
+                                    <div className="bg-white/10 backdrop-blur-lg rounded-lg p-12 text-center">
+                                        <div className="animate-spin w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                                        <p className="text-xl text-white">Scanning API database...</p>
+                                        <p className="text-purple-300 mt-2">Analyzing semantic, structural, and behavioral patterns</p>
+                                    </div>
+                                ) : results && (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                                            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6"><div className="flex items-center gap-3"><div className="text-red-400"><AlertCircle /></div><div><p className="text-3xl font-bold text-white">{results.stats.found}</p><p className="text-purple-300 text-sm">Duplicates Found</p></div></div></div>
+                                            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6"><div className="flex items-center gap-3"><div className="text-blue-400"><TrendingUp /></div><div><p className="text-3xl font-bold text-white">{results.stats.totalCalls.toLocaleString()}</p><p className="text-purple-300 text-sm">Total API Calls/Day</p></div></div></div>
+                                            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6"><div className="flex items-center gap-3"><div className="text-green-400"><DollarSign /></div><div><p className="text-3xl font-bold text-white">${results.stats.estimatedSavings.toLocaleString()}</p><p className="text-purple-300 text-sm">Potential Savings</p></div></div></div>
+                                            <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6"><div className="flex items-center gap-3"><div className="text-yellow-400"><CheckCircle /></div><div><p className="text-3xl font-bold text-white">{results.stats.consolidationPotential}</p><p className="text-purple-300 text-sm">Consolidation Priority</p></div></div></div>
+                                        </div>
+
+                                        <div className="bg-white/10 backdrop-blur-lg rounded-lg p-6">
+                                            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2"><FileText />Detected Duplicates</h2>
+                                            {results.duplicates.length === 0 ? (
+                                                <div className="text-center py-8">
+                                                    <div className="text-green-400 flex justify-center mb-4"><CheckCircle /></div>
+                                                    <p className="text-xl text-white">No significant duplicates detected!</p>
+                                                    <p className="text-purple-300 mt-2">This API appears to be unique in your system.</p>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-4">
+                                                    {results.duplicates.map((api) => (
+                                                        <div key={api.id} className="bg-white/5 rounded-lg p-6 border-l-4 border-purple-500">
+                                                            <div className="flex items-center gap-3 mb-2">
+                                                                <span className={`px-3 py-1 rounded-full text-sm font-bold ${getSimilarityColor(api.similarity.overall)}`}>{api.similarity.overall}% Match</span>
+                                                                <span className="text-purple-300 text-sm font-semibold">{getSimilarityLabel(api.similarity.overall)}</span>
+                                                            </div>
+                                                            <h3 className="text-xl font-mono text-white mb-2">{api.name}</h3>
+                                                            <p className="text-purple-200 mb-3">{api.description}</p>
+                                                            <div className="grid grid-cols-3 gap-4 mb-4">
+                                                                <div>
+                                                                    <p className="text-purple-300 text-sm mb-1">Semantic</p>
+                                                                    <div className="bg-white/10 rounded-full h-2 overflow-hidden"><div className="bg-blue-500 h-full" style={{width: api.similarity.semantic + '%'}}></div></div>
+                                                                    <p className="text-white text-sm mt-1">{api.similarity.semantic}%</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-purple-300 text-sm mb-1">Structural</p>
+                                                                    <div className="bg-white/10 rounded-full h-2 overflow-hidden"><div className="bg-green-500 h-full" style={{width: api.similarity.structural + '%'}}></div></div>
+                                                                    <p className="text-white text-sm mt-1">{api.similarity.structural}%</p>
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-purple-300 text-sm mb-1">Behavioral</p>
+                                                                    <div className="bg-white/10 rounded-full h-2 overflow-hidden"><div className="bg-yellow-500 h-full" style={{width: api.similarity.behavioral + '%'}}></div></div>
+                                                                    <p className="text-white text-sm mt-1">{api.similarity.behavioral}%</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                                                                <span className="text-purple-300 text-sm">{api.calls.toLocaleString()} calls/day</span>
+                                                                <span className="px-3 py-1 bg-red-500/20 text-red-300 text-sm rounded">Consolidation Recommended</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<DuplicateAPIDetective />, document.getElementById('root'));
+    </script>
+</body>
+</html>
